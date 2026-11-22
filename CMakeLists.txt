@@ -89,3 +89,20 @@ if(APPLE)
     ${HU_LIBUSB_LIB} ${HU_AVCODEC_LIB} ${HU_AVUTIL_LIB}
     "-framework AudioToolbox" "-framework CoreFoundation")
 endif()
+
+# Integration tests (D4): fake UsbTransport for the handshake and reconnect;
+# the simulator for audio routing and the power fault path. No dongle is opened.
+set(HU_INTEGRATION_TEST_SOURCES
+  tests/integration/handshake_test.cpp
+  tests/integration/reconnect_test.cpp)
+if(HU_SIMULATOR)
+  list(APPEND HU_INTEGRATION_TEST_SOURCES
+    tests/integration/audio_routing_test.cpp
+    tests/integration/fault_path_test.cpp)
+endif()
+add_executable(integration_tests ${HU_INTEGRATION_TEST_SOURCES})
+target_link_libraries(integration_tests PRIVATE headunit_core hu_interfaces hu_protocol GTest::gtest_main)
+if(HU_SIMULATOR)
+  target_link_libraries(integration_tests PRIVATE hu_simulator)
+endif()
+add_test(NAME integration COMMAND integration_tests)

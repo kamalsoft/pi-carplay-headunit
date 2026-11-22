@@ -36,6 +36,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
   - CMake: an `if(APPLE)` block with `hu_hal_macos` and `hu_hal_probe`. libusb is found by name (`usb-1.0`) and linked as a dylib. FFmpeg is only searched under `build/third_party/ffmpeg` with `NO_DEFAULT_PATH`, so Homebrew ffmpeg cannot be picked up. CoreAudio is linked as frameworks.
   - Not done: hotplug callbacks (Attached and Detached come from open and transfer results only), and no unit tests added. The gate's unit test count stays 41.
   - Known limits: the live USB path is untested (dongle not visible to the Mac this session). The decoder was tested on a generated 20-frame H.264 stream. Audio was opened and fed silence only; no audible output was checked.
+- Integration tests (D4) in `tests/integration/`, target `integration_tests` (CMake, appended; `unit_tests` lines unchanged). 17 tests, all PASS on the LLVM 22 gate:
+  - Fake transport only (`fake_usb_transport.h`, no hardware opened): `handshake_test.cpp` (6 tests: 11 init messages in order and byte-for-byte against `build_handshake`, DPI and heartbeat and wifi-connect frames byte-exact, no write when closed) and `reconnect_test.cpp` (4 tests: unplug and replug walk Standby and Connecting through `next_state`, handshake restarts from the first message, unplug while Connecting returns to Standby).
+  - Simulator only (`HU_SIMULATOR`): `audio_routing_test.cpp` (3 tests: Media tone and Navigation tone land only in their channel; underrun counters are per channel) and `fault_path_test.cpp` (4 tests: low-voltage and thermal faults reach `onSuspend`, and clears reach `onResume`, via a test-side `PowerDispatch`).
+  - Gaps, recorded as A-20 to A-24: no core handshake driver, no cadence timers, no power-to-plugin dispatcher, no HAL-to-state event mapping. Two of the tests supply that logic themselves and say so in their comments.
 ### Changed
 - D1 interfaces, after review decisions:
   - `HeadUnitPlugin` gains `onCarPlayDisconnect`, `onSuspend`, `onResume` (CLAUDE.md §3.2 throttling).
