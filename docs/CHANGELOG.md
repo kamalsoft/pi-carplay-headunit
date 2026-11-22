@@ -40,6 +40,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
   - Fake transport only (`fake_usb_transport.h`, no hardware opened): `handshake_test.cpp` (6 tests: 11 init messages in order and byte-for-byte against `build_handshake`, DPI and heartbeat and wifi-connect frames byte-exact, no write when closed) and `reconnect_test.cpp` (4 tests: unplug and replug walk Standby and Connecting through `next_state`, handshake restarts from the first message, unplug while Connecting returns to Standby).
   - Simulator only (`HU_SIMULATOR`): `audio_routing_test.cpp` (3 tests: Media tone and Navigation tone land only in their channel; underrun counters are per channel) and `fault_path_test.cpp` (4 tests: low-voltage and thermal faults reach `onSuspend`, and clears reach `onResume`, via a test-side `PowerDispatch`).
   - Gaps, recorded as A-20 to A-24: no core handshake driver, no cadence timers, no power-to-plugin dispatcher, no HAL-to-state event mapping. Two of the tests supply that logic themselves and say so in their comments.
+- Core driver (wave 5) in `src/core/core.{h,cpp}` (`hu::core::Core`), built as `hu_core` (static, standard library only). Owns the state machine and an event queue: HAL threads call `post()` and `post_usb()`, and the core thread runs `pump()` and `tick()`. Transitions come only from `next_state()`. `map_usb_event()` maps Attached and Detached to DongleAttached and DongleDetached, and Error to DongleDetached (AUDIT A-23).
+- Handshake driver in the core (AUDIT A-20): entering Connecting opens the transport when closed and sends the 11 init messages from `build_handshake` in order. A failed open or write posts HandshakeFailed. A replug restarts the handshake from the first message.
+- Core timers (AUDIT A-21), read from an injected `core::Clock` (`src/core/clock.h`, with `SystemClock` for production): wifiConnect 1 s after the handshake, cancelled if the core leaves Connecting before it fires. Heartbeat every 2 s while Projecting, stopped on leaving Projecting. Power polled once per 1 s.
+- Power dispatch in the core (AUDIT A-22, CLAUDE.md 3.2): live under-voltage (0x1) or CPU above 75 C calls `onSuspend` on every plugin, and both clearing calls `onResume`. The sticky mask (0x50000) is logged on change and never gates suspension.
+- Plugin callbacks from the core: `onCarPlayConnect` on entering Projecting, `onCarPlayDisconnect` on leaving it, `onShutdown` once on entering Shutdown.
+- `tests/unit/core_test.cpp`: 12 tests for the USB event mapping, the timer cadence (wifiConnect, heartbeat, power poll), power dispatch (live under-voltage, thermal edge at 75.0 and 75.1, sticky-only), and plugin callbacks.
+- Test fakes in `tests/support/`: `fake_clock.h` (advance only, fixed unix time), `fake_power.h` (scripted PowerMonitor). `fake_usb_transport.h` moved here from `tests/integration/` and gained `refuse_open`.
+
 ### Changed
 - D1 interfaces, after review decisions:
   - `HeadUnitPlugin` gains `onCarPlayDisconnect`, `onSuspend`, `onResume` (CLAUDE.md §3.2 throttling).
@@ -47,6 +55,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
   - Ignition source decided: GPIO sense line on the car's 12V ACC, not yet wired.
   - Threading decided: sinks (`UsbTransport`, `VideoDecoder`, `InputSource`) run on the core thread. The HAL posts to a core queue.
 - Sanitizer gate compiler: Homebrew LLVM 22 (`build-llvm/`). Apple clang 21 aborts under ASan inside gtest startup (toolchain false positive). Gate is 41/41 passing with LLVM 22 under ASan and UBSan. `build-verify` skill updated.
+
+- Integration tests now drive `hu::core::Core` and the test-side copies are removed: `handshake_test.cpp` (the handshake driver), `reconnect_test.cpp` (`CoreLoop` and `to_event`), `fault_path_test.cpp` (`PowerDispatch`). The `ASSERT_TRUE(apply(...))` checks in the reconnect tests are replaced by trace and state assertions. Two handshake tests were renamed for the behaviour they now check: `WifiConnectIsSentOneSecondAfterInitSequence` and `HeartbeatFrameIsByteExactAndSentEveryTwoSecondsWhileProjecting`. `NoInitMessageWrittenWhenTransportWontOpen` replaces `NoInitMessageWrittenWhenTransportClosed` and checks the open-refused path. `audio_routing_test.cpp` has no core logic and is unchanged.
+- CMake: `hu_core` library, linked into `unit_tests` and `integration_tests`. `tests/support` is on the include path of both.
 
 ### Documentation
 - `docs/CHANGELOG.md` created (this file).

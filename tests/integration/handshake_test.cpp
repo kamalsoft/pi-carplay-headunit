@@ -1,19 +1,27 @@
-// Integration (fake transport, no dongle): CPC200 handshake driven through
-// hu::protocol against tests/integration/fake_usb_transport.h.
-// Backend: fake UsbTransport only. No hardware was opened.
+// Integration (fake transport, no dongle): CPC200 handshake driven by the
+// production core (src/core/core.h) against tests/support/fake_usb_transport.h.
+// Backend: fake UsbTransport and fake PowerMonitor only. No hardware was opened.
 
 #include <gtest/gtest.h>
 
 #include <cstdint>
 #include <vector>
 
+#include "core/core.h"
 #include "core/protocol/cpc200.h"
+#include "fake_clock.h"
+#include "fake_power.h"
 #include "fake_usb_transport.h"
 
 namespace {
 
+using hu::core::Core;
+using hu::core::Event;
+using hu::core::State;
 using hu::hal::UsbId;
 using namespace hu::protocol;
+using hu::integration::FakeClock;
+using hu::integration::FakePowerMonitor;
 using hu::integration::FakeUsbTransport;
 
 const UsbId kCcpa{0x1314, 0x1520};
@@ -39,82 +47,97 @@ uint32_t type_of(const std::vector<uint8_t>& frame) {
   return static_cast<uint32_t>(frame[8]) | (static_cast<uint32_t>(frame[9]) << 8);
 }
 
-// Sends the init sequence and returns how many messages the transport accepted.
-size_t run_handshake(FakeUsbTransport& t, const HandshakeConfig& cfg, uint64_t sync_s) {
-  size_t sent = 0;
-  for (const auto& m : build_handshake(cfg, sync_s)) {
-    if (!send_message(t, m, 100)) break;
-    ++sent;
+// Production core on the fake transport, with the fake clock and power source.
+struct Rig {
+  FakeClock clock;
+  FakeUsbTransport usb;
+  FakePowerMonitor power;
+  Core core{usb, power, clock, {}};
+
+  // Start, then attach the dongle. The handshake runs on entering Connecting.
+  void connect() {
+    core.start();
+    usb.attach(kCcpa);
+    core.pump();
   }
-  return sent;
-}
+};
 
 }  // namespace
 
 TEST(Handshake, ElevenInitMessagesWrittenInUpstreamOrder) {
-  FakeUsbTransport t;
-  t.attach(kCcpa);
-  ASSERT_TRUE(t.open(kCcpa));
-  HandshakeConfig cfg;
-  ASSERT_EQ(run_handshake(t, cfg, 1700000000), 11u);
+  Rig r;
+  r.connect();
+  ASSERT_EQ(r.core.state(), State::Connecting);
+  ASSERT_TRUE(r.usb.is_open());
+  ASSERT_EQ(r.usb.writes.size(), 11u);
 
-  ASSERT_EQ(t.writes.size(), 11u);
   std::vector<uint32_t> types;
-  for (const auto& w : t.writes) types.push_back(type_of(w));
+  for (const auto& w : r.usb.writes) types.push_back(type_of(w));
   EXPECT_EQ(types, kInitTypes);
 }
 
 TEST(Handshake, InitMessagesMatchBuildHandshakeByteForByte) {
-  FakeUsbTransport t;
-  t.attach(kCcpa);
-  ASSERT_TRUE(t.open(kCcpa));
-  HandshakeConfig cfg;
-  run_handshake(t, cfg, 1700000000);
+  Rig r;
+  r.connect();
 
-  const auto expected = build_handshake(cfg, 1700000000);
-  ASSERT_EQ(t.writes.size(), expected.size());
+  const auto expected = build_handshake(HandshakeConfig{}, 1700000000);
+  ASSERT_EQ(r.usb.writes.size(), expected.size());
   for (size_t i = 0; i < expected.size(); ++i) {
-    EXPECT_EQ(t.writes[i], expected[i]) << "init message " << i;
+    EXPECT_EQ(r.usb.writes[i], expected[i]) << "init message " << i;
   }
 }
 
 TEST(Handshake, FirstInitMessageIsDpiFrameByteExact) {
-  FakeUsbTransport t;
-  t.attach(kCcpa);
-  ASSERT_TRUE(t.open(kCcpa));
-  run_handshake(t, HandshakeConfig{}, 1700000000);
-  ASSERT_FALSE(t.writes.empty());
-  EXPECT_EQ(t.writes[0], kDpiFrame);
+  Rig r;
+  r.connect();
+  ASSERT_FALSE(r.usb.writes.empty());
+  EXPECT_EQ(r.usb.writes[0], kDpiFrame);
 }
 
-TEST(Handshake, WifiConnectIsSentAfterInitSequence) {
-  FakeUsbTransport t;
-  t.attach(kCcpa);
-  ASSERT_TRUE(t.open(kCcpa));
-  run_handshake(t, HandshakeConfig{}, 1700000000);
-  // The 1 s delay before this send is a core timer; this checks order and bytes only.
-  ASSERT_TRUE(send_message(t, build_wifi_connect(), 100));
+TEST(Handshake, WifiConnectIsSentOneSecondAfterInitSequence) {
+  Rig r;
+  r.connect();
+  ASSERT_EQ(r.usb.writes.size(), 11u);
 
-  ASSERT_EQ(t.writes.size(), 12u);
-  EXPECT_EQ(t.writes[11], kWifiConnectFrame);
+  r.clock.advance(999);
+  r.core.tick();
+  EXPECT_EQ(r.usb.writes.size(), 11u);  // not yet: the delay is 1 s
+
+  r.clock.advance(1);
+  r.core.tick();
+  ASSERT_EQ(r.usb.writes.size(), 12u);
+  EXPECT_EQ(r.usb.writes[11], kWifiConnectFrame);
+
+  r.clock.advance(1000);
+  r.core.tick();
+  EXPECT_EQ(r.usb.writes.size(), 12u);  // sent once only
 }
 
-TEST(Handshake, HeartbeatFrameIsByteExactAndWrittenOnEachSend) {
-  FakeUsbTransport t;
-  t.attach(kCcpa);
-  ASSERT_TRUE(t.open(kCcpa));
+TEST(Handshake, HeartbeatFrameIsByteExactAndSentEveryTwoSecondsWhileProjecting) {
+  Rig r;
+  r.connect();
+  r.clock.advance(1000);
+  r.core.tick();  // wifi connect
+  ASSERT_EQ(r.usb.writes.size(), 12u);
+
+  r.core.post(Event::PhoneConnected);
+  r.core.pump();
+  ASSERT_EQ(r.core.state(), State::Projecting);
+
   for (int i = 0; i < 3; ++i) {
-    ASSERT_TRUE(send_message(t, build_heartbeat(), 100));
+    r.clock.advance(2000);
+    r.core.tick();
   }
-  ASSERT_EQ(t.writes.size(), 3u);
-  for (const auto& w : t.writes) {
-    EXPECT_EQ(w, kHeartbeatFrame);
+  ASSERT_EQ(r.usb.writes.size(), 15u);
+  for (size_t i = 12; i < r.usb.writes.size(); ++i) {
+    EXPECT_EQ(r.usb.writes[i], kHeartbeatFrame);
   }
 }
 
-TEST(Handshake, NoInitMessageWrittenWhenTransportClosed) {
-  FakeUsbTransport t;
-  t.attach(kCcpa);  // attached but never opened
-  EXPECT_EQ(run_handshake(t, HandshakeConfig{}, 0), 0u);
-  EXPECT_TRUE(t.writes.empty());
+TEST(Handshake, NoInitMessageWrittenWhenTransportWontOpen) {
+  Rig r;
+  r.usb.refuse_open = true;  // attached, but open() fails
+  r.connect();
+  EXPECT_EQ(r.core.state(), State::Standby);
+  EXPECT_TRUE(r.usb.writes.empty());
 }
