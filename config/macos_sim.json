@@ -1,0 +1,14 @@
+{
+  "env": "macos_sim",
+  "decoder": "videotoolbox",
+  "audio_backend": "coreaudio",
+  "usb": {
+    "vendor_id": 1314,
+    "product_ids": [1520, 1521]
+  },
+  "resources": {
+    "rss_target_mb": 260,
+    "rss_warn_mb": 280,
+    "temp_warn_c": 75
+  }
+}
