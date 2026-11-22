@@ -23,6 +23,15 @@ Every dependency and every borrowed line must be legal to ship. Check before add
 | libusb | LGPL-2.1-or-later | **dynamic only** (keeps the app relinkable) |
 | FFmpeg | LGPL-2.1+ build only | **dynamic only**. Homebrew `ffmpeg` is GPL-3.0 and must not be used. Build our own with `--disable-gpl --disable-nonfree` (no x264/x265). Step 2. |
 
+## FFmpeg build record (track N3)
+- Version: FFmpeg 9.1 (`ffmpeg-9.1.tar.xz` from ffmpeg.org/releases)
+- SHA-256: `1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433`
+- Verified: PGP signature (`.asc`) good against FFmpeg release key `FCF986EA15E6E293A5644F10B4322F04D67658D8`
+- Configure (run from an out-of-tree build dir):
+  `configure --prefix=/Users/kamalsoft/dev/pi/pi-carplay-headunit/build/third_party/ffmpeg --disable-gpl --disable-nonfree --enable-shared --disable-static --disable-doc`
+- Result: `ffmpeg -version` reports `License: LGPL version 2.1 or later`, no `--enable-gpl`. Libraries are dynamic (`.dylib`); no x264/x265.
+- Note: configure auto-detected Homebrew libxcb/libX11 (used by the xcb grab device); harmless to the license, but disable if a fully self-contained build is wanted.
+
 ## Open items
 - Project license: **Apache-2.0** (`LICENSE`), chosen 2026-11-21.
 - `THIRD_PARTY_NOTICES.md` lists every notice above. Update it when a dependency is added or linked.
