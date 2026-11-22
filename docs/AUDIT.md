@@ -22,10 +22,10 @@ Severity: **High** blocks distribution or legal safety. **Medium** blocks a CLAU
 
 | ID | Sev | Finding | Evidence | Owner / Step | Status |
 |---|---|---|---|---|---|
-| A-01 | High | No project `LICENSE` file. Our own code has no license, so it cannot be shipped or accepted from others. | `ls LICENSE*` returns nothing | User decision | Open |
+| A-01 | High | No project `LICENSE` file. Our own code had no license, so it could not be shipped or accepted from others. | `LICENSE` is Apache-2.0 (verified against GitHub's license API text) | User decision | Closed 2026-11-21 |
 | A-02 | High | Protocol origin is decided (node-CarPlay, MIT) but the port is not written. Any future copy from `carlinkit-cxx` would drop the MIT notice. | `docs/LICENSING.md` | protocol-engineer, Step 2 | Open (mitigated by policy) |
 | A-03 | Medium | Homebrew `ffmpeg` is GPL-3.0. Not linked yet, but Step 2 would link it by default if not checked. | `brew info ffmpeg` | toolchain-builder | Open |
-| A-04 | Medium | Not a git repository. No history, no commit traceability, no review trail. | `git rev-parse` fails | User decision | Open |
+| A-04 | Medium | Git connection. Repo is linked to `origin` (github.com/kamalsoft/pi-carplay-headunit, public), HEAD `a1cd617` matches `origin/main`, working tree clean. | `git status` clean; `git rev-parse HEAD origin/main` equal | User + docs-keeper | Closed 2026-11-21 |
 | A-05 | Medium | RAM figures are estimates only. The 260/280 MB limits are not yet measured. | `docs/RAM_BUDGET.md` | sim-engineer, Step 4 | Open |
 | A-06 | Medium | Pi Zero 2 W hardware H.264 decode is unverified. The reference project validated only Pi 4 and Pi 5. | `carlinkit-cxx` README | pi-researcher | Open |
 | A-07 | Medium | CLAUDE.md §3 safety items (power monitor, OverlayFS, SIGTERM/USB recovery) are not implemented. Expected at this stage, but nothing yet tracks them. | CLAUDE.md §3 | safety-verifier, Step 5 | Open (planned) |

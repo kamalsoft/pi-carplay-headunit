@@ -10,6 +10,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - `docs/AGENTS.md`: agent task plan split into a dependable (sequential) track and a non-dependable (parallel) track, with wave gates.
 - `.claude/agents/`: agent definitions for each role in the plan.
 - `docs/README.md`: index of project documentation and the rules for keeping it current.
+- `LICENSE`: Apache License 2.0 (official text).
+- `THIRD_PARTY_NOTICES.md`: notices for nlohmann/json (MIT, shipped) and node-CarPlay (MIT, planned), with full MIT texts. Lists planned LGPL and Zlib components.
 
 ### Documentation
 - `docs/CHANGELOG.md` created (this file).

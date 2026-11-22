@@ -24,6 +24,6 @@ Every dependency and every borrowed line must be legal to ship. Check before add
 | FFmpeg | LGPL-2.1+ build only | **dynamic only**. Homebrew `ffmpeg` is GPL-3.0 and must not be used. Build our own with `--disable-gpl --disable-nonfree` (no x264/x265). Step 2. |
 
 ## Open items
-- Project license for our own code is not chosen yet. Pick before first public release.
-- `THIRD_PARTY_NOTICES.md` must list every notice above before distribution.
+- Project license: **Apache-2.0** (`LICENSE`), chosen 2026-11-21.
+- `THIRD_PARTY_NOTICES.md` lists every notice above. Update it when a dependency is added or linked.
 - Apple CarPlay: the dongle carries Apple's licensed authentication. Do not use Apple logos, the "CarPlay" name as a product name, or claim Apple certification. Personal use with a dongle you own is the intended scope; confirm with counsel before any sale or distribution.
