@@ -27,6 +27,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - `build/third_party/ffmpeg`: FFmpeg 9.1 built LGPL-only (`--disable-gpl --disable-nonfree --enable-shared`), recorded in `docs/LICENSING.md`. Not committed (under `build/`).
 - `docs/RAM_BUDGET.md`: "Pi Zero 2 W facts (research)" section with cited sources. No measured values.
 
+- macOS HAL (D3) in `src/hal/macos/`, behind the D1 interfaces, no D1 header changed:
+  - `libusb_transport.{h,cpp}` (`LibusbTransport`, `hal::UsbTransport`): opens by vendor 1314 and product 1520 or 1521 (passed in by the caller), claims interface 0, uses the first bulk IN and OUT endpoints. Bulk read and write with timeouts. Emits Attached on open, Detached when a transfer reports no device, Error on other transfer failures or an unusable device. Timeouts return the error code without an event. No control transfers.
+  - `videotoolbox_decoder.{h,cpp}` (`VideoToolboxDecoder`, `hal::VideoDecoder`): H.264 through the LGPL FFmpeg build, dynamic, with the VideoToolbox hwaccel. No software fallback. Output is NV12, copied out of the VideoToolbox surface. Latency is submit to output for the packet that produced the frame.
+  - `coreaudio_output.{h,cpp}` (`CoreAudioOutput`, `hal::AudioOutput`): one AudioQueue per channel (Media, Navigation), S16 only, 20 ms buffers, 500 ms ring. Whole frames only. Gain is the queue volume and survives reopen. Underruns counted in the audio callback.
+  - `core_queue.h` (`CoreQueue`): HAL threads post; the core calls `drain()`. All D1 sinks run in `drain()` on the core thread, as decided.
+  - `hal_probe.cpp` (`hu_hal_probe`): build-only hardware probe. Opens the dongle, reads once with a timeout, and exercises the decoder and audio open and close. It writes nothing to the dongle. Not linked into `headunit`.
+  - CMake: an `if(APPLE)` block with `hu_hal_macos` and `hu_hal_probe`. libusb is found by name (`usb-1.0`) and linked as a dylib. FFmpeg is only searched under `build/third_party/ffmpeg` with `NO_DEFAULT_PATH`, so Homebrew ffmpeg cannot be picked up. CoreAudio is linked as frameworks.
+  - Not done: hotplug callbacks (Attached and Detached come from open and transfer results only), and no unit tests added. The gate's unit test count stays 41.
+  - Known limits: the live USB path is untested (dongle not visible to the Mac this session). The decoder was tested on a generated 20-frame H.264 stream. Audio was opened and fed silence only; no audible output was checked.
 ### Changed
 - D1 interfaces, after review decisions:
   - `HeadUnitPlugin` gains `onCarPlayDisconnect`, `onSuspend`, `onResume` (CLAUDE.md §3.2 throttling).
