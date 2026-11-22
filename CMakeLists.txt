@@ -98,6 +98,23 @@ if(APPLE)
     "-framework AudioToolbox" "-framework CoreFoundation")
 endif()
 
+# Pi video HAL (Linux only): FFmpeg h264_v4l2m2m on the Pi's hardware decoder. Like macOS, FFmpeg is
+# searched only under HU_FFMPEG_ROOT (NO_DEFAULT_PATH), dynamic, and the LGPL build only.
+if(UNIX AND NOT APPLE)
+  set(HU_FFMPEG_ROOT "/home/piadmin/ffmpeg-lgpl" CACHE PATH "LGPL-only FFmpeg build root (dynamic libraries)")
+  find_path(HU_FFMPEG_INCLUDE_DIR libavcodec/avcodec.h HINTS "${HU_FFMPEG_ROOT}/include" NO_DEFAULT_PATH REQUIRED)
+  find_library(HU_AVCODEC_LIB NAMES avcodec HINTS "${HU_FFMPEG_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  find_library(HU_AVUTIL_LIB NAMES avutil HINTS "${HU_FFMPEG_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  find_library(HU_SWSCALE_LIB NAMES swscale HINTS "${HU_FFMPEG_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+
+  add_library(hu_hal_pi STATIC src/hal/pi/v4l2_decoder.cpp)
+  target_include_directories(hu_hal_pi SYSTEM PRIVATE ${HU_FFMPEG_INCLUDE_DIR})
+  target_link_libraries(hu_hal_pi PUBLIC hu_interfaces)
+
+  add_executable(video_probe src/hal/pi/video_probe.cpp)
+  target_link_libraries(video_probe PRIVATE hu_hal_pi ${HU_AVCODEC_LIB} ${HU_AVUTIL_LIB} ${HU_SWSCALE_LIB})
+endif()
+
 # Integration tests (D4): fake UsbTransport for the handshake and reconnect;
 # the simulator for audio routing and the power fault path. No dongle is opened.
 set(HU_INTEGRATION_TEST_SOURCES
