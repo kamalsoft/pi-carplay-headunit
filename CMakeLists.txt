@@ -115,3 +115,10 @@ if(HU_SIMULATOR)
   target_link_libraries(integration_tests PRIVATE hu_simulator)
 endif()
 add_test(NAME integration COMMAND integration_tests)
+
+# Stage 1 demo (CLAUDE.md §5): the real core driven by the simulator, no dongle. macos_sim only.
+if(HU_SIMULATOR)
+  add_executable(sim_demo src/simulator/demo_main.cpp)
+  target_link_libraries(sim_demo PRIVATE hu_simulator hu_core hu_protocol headunit_core hu_interfaces)
+  target_include_directories(sim_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+endif()
