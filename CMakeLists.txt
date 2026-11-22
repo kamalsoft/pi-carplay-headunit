@@ -66,3 +66,26 @@ add_library(hu_protocol STATIC src/core/protocol/cpc200.cpp)
 target_link_libraries(hu_protocol PUBLIC hu_interfaces)
 target_sources(unit_tests PRIVATE tests/unit/protocol_test.cpp)
 target_link_libraries(unit_tests PRIVATE hu_protocol)
+
+# macOS HAL (D3): libusb, FFmpeg (LGPL build, dynamic) with VideoToolbox, CoreAudio. Apple only.
+# FFmpeg is looked up only under HU_FFMPEG_ROOT (NO_DEFAULT_PATH), so Homebrew ffmpeg (GPL-3.0) cannot be picked up.
+if(APPLE)
+  find_path(HU_LIBUSB_INCLUDE_DIR libusb.h PATH_SUFFIXES libusb-1.0 REQUIRED)
+  find_library(HU_LIBUSB_LIB NAMES usb-1.0 REQUIRED)
+  set(HU_FFMPEG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/build/third_party/ffmpeg" CACHE PATH "LGPL-only FFmpeg build root (dynamic libraries)")
+  find_path(HU_FFMPEG_INCLUDE_DIR libavcodec/avcodec.h HINTS "${HU_FFMPEG_ROOT}/include" NO_DEFAULT_PATH REQUIRED)
+  find_library(HU_AVCODEC_LIB NAMES avcodec HINTS "${HU_FFMPEG_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+  find_library(HU_AVUTIL_LIB NAMES avutil HINTS "${HU_FFMPEG_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+
+  add_library(hu_hal_macos STATIC
+    src/hal/macos/libusb_transport.cpp
+    src/hal/macos/videotoolbox_decoder.cpp
+    src/hal/macos/coreaudio_output.cpp)
+  target_include_directories(hu_hal_macos SYSTEM PRIVATE ${HU_LIBUSB_INCLUDE_DIR} ${HU_FFMPEG_INCLUDE_DIR})
+  target_link_libraries(hu_hal_macos PUBLIC hu_interfaces)
+
+  add_executable(hu_hal_probe src/hal/macos/hal_probe.cpp)
+  target_link_libraries(hu_hal_probe PRIVATE hu_hal_macos
+    ${HU_LIBUSB_LIB} ${HU_AVCODEC_LIB} ${HU_AVUTIL_LIB}
+    "-framework AudioToolbox" "-framework CoreFoundation")
+endif()
