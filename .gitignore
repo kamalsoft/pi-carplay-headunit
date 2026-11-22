@@ -2,3 +2,4 @@ build/
 build-llvm/
 *.o
 .DS_Store
+build-demo/
