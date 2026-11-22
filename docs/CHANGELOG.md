@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ### Added
 - Interface headers only (D1): `src/hal/{video,audio,usb,touch,power}.h`, `src/plugins/plugin.h` (HeadUnitPlugin lifecycle), `src/core/state.h` (state enum, event enum, transition table). No implementations.
 - CMake `hu_interfaces` INTERFACE target (links no platform libraries) and interface tests in `tests/unit/interfaces_test.cpp`.
+- CPC200 protocol framing and handshake (D2), ported from node-CarPlay (MIT, © 2022 Rhys Morgan) in `src/core/protocol/cpc200.{h,cpp}`. Source: `src/modules/messages/common.ts` (blob `780e9d9cd157d7658523b90230bfd16b2290026a`), `src/modules/messages/sendable.ts` (blob `4cd8c45470e55d5651bc6eda24551278055b9f27`), `src/modules/DongleDriver.ts` start() init order (blob `005759420eca0b8705e2bb327ecddb81a00cefb0`), default branch `master`. Covers 16-byte LE header with type check `~type`, 8 MiB inbound payload cap (our guess, upstream has none; marked shortcut in code), inbound `read_frame`, and the 11-message init sequence plus optional androidWorkMode. Not ported: inbound message parsing (readable.ts), video, audio, touch, file icons. Timers (1 s wifiConnect, 2 s heartbeat) stay in the core. Builds against `hal::UsbTransport` only; no libusb.
+- `tests/unit/protocol_test.cpp`: 20 byte-exact tests (header encode and decode, rejected bad magic, bad type check, short buffer and oversize length, handshake write order against a recording fake transport, inbound framing errors).
+- CMake target `hu_protocol` (static) and `unit_tests` now also links it (appended lines only).
+- Known issue: `unit_tests` aborts under Apple clang 21 with `-fsanitize=address` (container-overflow inside gtest startup). A control build without any protocol code aborts the same way, and Homebrew LLVM 22 passes all 41 tests with the same sanitizer flags. Toolchain decision pending.
+- macOS mock CarPlay simulator (N5) in `src/simulator/simulator.{h,cpp}`, standard library only, implementing only the D1 HAL interfaces: test-pattern NV12 video decoder, raw USB byte feed with attach/yank, touch and scroll and key input, S16 Media and Navigation audio with a 500 ms real-time buffer model and sine tones, power monitor with ignition (reported on change), throttle flags and CPU temperature. Sinks run only in `Simulator::pump()` on the core thread; other threads post. Fault hooks: `yank_usb()`, `low_voltage()` (throttled_flags 0x1), `thermal_warning()` (cpu_temp_c). HUD snapshot (`hud()`): FPS over one second, decode latency, audio buffer ms, underruns, USB state, RSS, and a flag above 280 MB.
+- `tests/unit/simulator_test.cpp`: connect, one Detached, and ignition OFF arrive in order; low-voltage and thermal faults; test-pattern frame, touch and scroll sequence, and tone buffer bounds.
+- CMake `HU_ENV` (macos_sim or pi_prod; Apple defaults to macos_sim) and `HU_SIMULATOR` option (default ON only for macos_sim). Enabling it under pi_prod is a configure error. `hu_simulator` is linked only into `unit_tests`, never into `headunit`.
 - `docs/AUDIT.md`: audit report with 14 tracked findings and status.
 - `docs/AGENTS.md`: agent task plan split into a dependable (sequential) track and a non-dependable (parallel) track, with wave gates.
 - `.claude/agents/`: agent definitions for each role in the plan.
@@ -26,6 +33,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
   - `kThrottledUndervoltageMask` is replaced by `kThrottleLiveUndervoltage` (0x1, gates suspension now) and `kThrottleStickyMask` (0x50000, logged).
   - Ignition source decided: GPIO sense line on the car's 12V ACC, not yet wired.
   - Threading decided: sinks (`UsbTransport`, `VideoDecoder`, `InputSource`) run on the core thread. The HAL posts to a core queue.
+- Sanitizer gate compiler: Homebrew LLVM 22 (`build-llvm/`). Apple clang 21 aborts under ASan inside gtest startup (toolchain false positive). Gate is 41/41 passing with LLVM 22 under ASan and UBSan. `build-verify` skill updated.
 
 ### Documentation
 - `docs/CHANGELOG.md` created (this file).

@@ -29,7 +29,7 @@ Every dependency and every borrowed line must be legal to ship. Check before add
 - Verified: PGP signature (`.asc`) good against FFmpeg release key `FCF986EA15E6E293A5644F10B4322F04D67658D8`
 - Configure (run from an out-of-tree build dir):
   `configure --prefix=/Users/kamalsoft/dev/pi/pi-carplay-headunit/build/third_party/ffmpeg --disable-gpl --disable-nonfree --enable-shared --disable-static --disable-doc`
-- Result: `ffmpeg -version` reports `License: LGPL version 2.1 or later`, no `--enable-gpl`. Libraries are dynamic (`.dylib`); no x264/x265.
+- Result: `ffmpeg -version` shows no `--enable-gpl`. The LGPL wording is in the libraries (`strings libavutil.61.dylib` reports "LGPL version 2.1 or later"); the ffmpeg binary itself prints no license line. Libraries are dynamic (`.dylib`); no x264/x265.
 - Note: configure auto-detected Homebrew libxcb/libX11 (used by the xcb grab device); harmless to the license, but disable if a fully self-contained build is wanted.
 
 ## Open items
