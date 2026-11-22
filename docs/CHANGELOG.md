@@ -47,6 +47,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - Plugin callbacks from the core: `onCarPlayConnect` on entering Projecting, `onCarPlayDisconnect` on leaving it, `onShutdown` once on entering Shutdown.
 - `tests/unit/core_test.cpp`: 12 tests for the USB event mapping, the timer cadence (wifiConnect, heartbeat, power poll), power dispatch (live under-voltage, thermal edge at 75.0 and 75.1, sticky-only), and plugin callbacks.
 - Test fakes in `tests/support/`: `fake_clock.h` (advance only, fixed unix time), `fake_power.h` (scripted PowerMonitor). `fake_usb_transport.h` moved here from `tests/integration/` and gained `refuse_open`.
+- Pi video HAL (Linux only) in `src/hal/pi/`, behind the D1 `VideoDecoder` interface, no D1 header changed:
+  - `v4l2_decoder.{h,cpp}` (`V4l2Decoder`): H.264 through FFmpeg `h264_v4l2m2m` (bcm2835-codec, /dev/video10). No software fallback: open() fails if the decoder is missing. Output is converted to NV12 (the decoder returns YU12 planar; U and V are interleaved). Sinks run on the core thread through `hal/macos/core_queue.h` (shortcut: that header is platform-neutral and should move to `src/hal/` later). `close()` flushes frames still in the decoder into the queue. Latency is submit to output, same rule as the VideoToolbox backend.
+  - `video_probe.cpp` (`video_probe`): build-only probe. Splits an Annex B file into access units and decodes it; prints frames decoded, size and latency. No network, no USB.
+  - CMake: `if(UNIX AND NOT APPLE)` block with `hu_hal_pi` and `video_probe`. FFmpeg is found only under the cache variable `HU_FFMPEG_ROOT` (default `/home/piadmin/ffmpeg-lgpl`, `NO_DEFAULT_PATH`), dynamic, LGPL build only. Links avcodec, avutil and swscale; the linker drops swscale (unused), so it is not a runtime dependency.
+  - Known limit: frame content was not checked pixel by pixel; the probe checks count, size and latency only.
 
 ### Changed
 - D1 interfaces, after review decisions:
