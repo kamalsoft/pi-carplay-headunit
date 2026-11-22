@@ -67,6 +67,14 @@ target_link_libraries(hu_protocol PUBLIC hu_interfaces)
 target_sources(unit_tests PRIVATE tests/unit/protocol_test.cpp)
 target_link_libraries(unit_tests PRIVATE hu_protocol)
 
+# Core driver (A-20 to A-23): state machine, event queue, handshake timers, power dispatch.
+# Standard library only, behind the D1 interfaces and the protocol layer.
+add_library(hu_core STATIC src/core/core.cpp)
+target_link_libraries(hu_core PUBLIC hu_protocol hu_interfaces)
+target_sources(unit_tests PRIVATE tests/unit/core_test.cpp)
+target_link_libraries(unit_tests PRIVATE hu_core)
+target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/support)
+
 # macOS HAL (D3): libusb, FFmpeg (LGPL build, dynamic) with VideoToolbox, CoreAudio. Apple only.
 # FFmpeg is looked up only under HU_FFMPEG_ROOT (NO_DEFAULT_PATH), so Homebrew ffmpeg (GPL-3.0) cannot be picked up.
 if(APPLE)
@@ -101,7 +109,8 @@ if(HU_SIMULATOR)
     tests/integration/fault_path_test.cpp)
 endif()
 add_executable(integration_tests ${HU_INTEGRATION_TEST_SOURCES})
-target_link_libraries(integration_tests PRIVATE headunit_core hu_interfaces hu_protocol GTest::gtest_main)
+target_link_libraries(integration_tests PRIVATE headunit_core hu_interfaces hu_protocol hu_core GTest::gtest_main)
+target_include_directories(integration_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/support)
 if(HU_SIMULATOR)
   target_link_libraries(integration_tests PRIVATE hu_simulator)
 endif()

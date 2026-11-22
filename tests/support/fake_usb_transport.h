@@ -1,8 +1,8 @@
 #pragma once
 
-// Recording fake of hal::UsbTransport for integration tests. No libusb. The
-// test plays the HAL role: emit() fires events on the sink the way the core
-// thread would see them. Reads are served from rx.
+// Recording fake of hal::UsbTransport for integration and unit tests. No libusb.
+// The test plays the HAL role: attach() and detach() fire events on the sink the
+// way the HAL would post them. Reads are served from rx. refuse_open makes open() fail.
 
 #include <algorithm>
 #include <cstddef>
@@ -17,7 +17,7 @@ namespace hu::integration {
 class FakeUsbTransport final : public hal::UsbTransport {
  public:
   bool open(hal::UsbId id) override {
-    if (!present_ || id.vendor_id != id_.vendor_id || id.product_id != id_.product_id) {
+    if (refuse_open || !present_ || id.vendor_id != id_.vendor_id || id.product_id != id_.product_id) {
       return false;
     }
     open_ = true;
@@ -57,6 +57,7 @@ class FakeUsbTransport final : public hal::UsbTransport {
     if (sink_) sink_(hal::UsbEvent::Detached, id_);
   }
 
+  bool refuse_open = false;
   std::vector<std::vector<uint8_t>> writes;
   std::vector<uint8_t> rx;
   size_t rx_pos = 0;
